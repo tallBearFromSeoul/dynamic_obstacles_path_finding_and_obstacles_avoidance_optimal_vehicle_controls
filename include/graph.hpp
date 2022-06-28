@@ -4,13 +4,13 @@
 
 class Graph {
 	protected:
-		std::vector<std::vector<int>> _adj_list;
+		//std::vector<std::vector<int>> _adj_list;
+		std::unordered_map<int, std::vector<int>> _adj_list;
 		std::unordered_map<int, int> _nid2gid_map;
 		std::unordered_map<int, int> _gid2nid_map;
 		std::unordered_map<int, NodePtr> _nid2n_map;
-		std::unordered_map<int, int> _nid2pnid_map;
+		std::unordered_map<int, int> _gid2pgid_map;
 		std::vector<NodePtr> _path;
-		std::vector<bool> _visited;
 		bool _path_found = false;
 		int _n_nodes=0;
 		int _n_edges=0;
@@ -18,17 +18,18 @@ class Graph {
 	public:
 		std::unordered_map<int, int> gid2nid_map() {return _gid2nid_map;};
 		std::unordered_map<int, NodePtr> nid2n_map() {return _nid2n_map;};
-		std::vector<std::vector<int>> graph() {return _adj_list;};
-		std::vector<NodePtr> path() {return _path;};
+		std::unordered_map<int, std::vector<int>> *graph() {return &_adj_list;};
+		//std::vector<std::vector<int>>* graph() {return &_adj_list;};
+		std::vector<NodePtr>* path() {return &_path;};
 
 		Graph() {};
 		
 		void add_node(const NodePtr &__n) {
 			_gid2nid_map[_n_nodes] = __n->id();
-			__n->report();
 			_nid2gid_map[__n->id()] = _n_nodes;
 			_nid2n_map[__n->id()] = __n;
-			_adj_list.resize(_n_nodes+1);
+			_adj_list[_n_nodes] = {};
+			//_adj_list.resize(_adj_list.size()+1);
 			_n_nodes++;
 		};
 
@@ -39,55 +40,54 @@ class Graph {
 			if (!_nid2gid_map.count(__dst->id())) {
 				add_node(__dst);
 			}
-			/*
-			std::cout<<"\nadd_edge()\n";
-			std::cout<<"src gid : "<<_nid2gid_map[__src->id()]<<"\n";
-			std::cout<<"dst gid : "<<_nid2gid_map[__dst->id()]<<"\n";
-			*/
 			_adj_list[_nid2gid_map[__src->id()]].push_back(_nid2gid_map[__dst->id()]);
-			_nid2pnid_map[__dst->id()] = __src->id();
+			_gid2pgid_map[_nid2gid_map[__dst->id()]] = _nid2gid_map[__src->id()];
 			_n_edges++;
 		}
 
 		void reconnect(const NodePtr &__n_new, const NodePtr &__nb) {
 			// parent or the node pointing to __nb will now point to __n_new now;
-			int __pnid = _nid2pnid_map[__nb->id()];
-			int __pgid = _nid2gid_map[__pnid];
-			_nid2pnid_map[__nb->id()] = __n_new->id();
-			// removing edge from previous parent to __nb
-			_adj_list[__pnid].erase(std::remove(_adj_list[__pnid].begin(), _adj_list[__pnid].end(), __nb->id()), _adj_list[__pnid].end());
-			/*
-			for (int i=0; i<_adj_list[__pgid].size(); i++) {
-				if (_adj_list[__pgid][i] == __nb->id()) {
-					_adj_list[__pgid].erase(_adj_list[__pgid].begin()+i);
-				}
+			int __pgid = _gid2pgid_map[_nid2gid_map[__nb->id()]];
+			
+			_gid2pgid_map[_nid2gid_map[__nb->id()]] = _nid2gid_map[__n_new->id()];
+			_adj_list[__pgid].erase(std::remove(_adj_list[__pgid].begin(), _adj_list[__pgid].end(), _nid2gid_map[__nb->id()]), _adj_list[__pgid].end());
+			if (_adj_list[__pgid].size() == 0) {
+				_adj_list.erase(__pgid);
 			}
-			*/
 			add_edge(__n_new, __nb);
 		}
 
 		void dfs(const NodePtr &__src, const NodePtr &__dst) {
+			_path_found = false;
 			_path.clear();
-			_visited = std::vector<bool>(_n_nodes, false);
 			std::vector<NodePtr> __path;
 			dfs_helper(__src, __dst, __path);
 		}
+		void dfs(NodePtr &__n_cur, const std::vector<NodePtr> &__nbs, const NodePtr &__dst) {
+			for (const NodePtr &__nb : __nbs) {
+				dfs(__nb, __dst);
+				if (_path_found) {
+					add_edge(__n_cur, __nb);
+					_path.insert(_path.begin(), __n_cur);
+					return;
+				}
+			}
+		}
+		void dfs(const std::vector<NodePtr> &__nbs, const NodePtr &__dst) {
+			for (const NodePtr &__nb : __nbs) {
+				dfs(__nb, __dst);
+				if (_path_found) {
+					return;
+				}
+			}
+		}
 
 		void dfs_helper(const NodePtr &__src, const NodePtr &__dst, std::vector<NodePtr> __path) {
-			/*
-			std::cout<<"\ndfs_helper():\n";
-			__src->report();
-			std::cout<<"graph id : "<<_nid2gid_map[__src->id()]<<"\n";
-			__dst->report();
-			std::cout<<"graph id : "<<_nid2gid_map[__dst->id()]<<"\n";
-			*/
-			if (_path_found)
+			if (_path_found) 
 				return;
 			if (__src == nullptr)
 				return;
 			int s_id = _nid2gid_map[__src->id()];
-			if (_visited[s_id])
-				return;
 			__path.push_back(__src);
 			if (__src == __dst) {
 				_path = __path;
@@ -97,7 +97,6 @@ class Graph {
 			for (int e_id : _adj_list[s_id]) {
 				dfs_helper(_nid2n_map[_gid2nid_map[e_id]], __dst, __path);
 			}
-			_visited[s_id] = true;
 		}
 
 		void print_path() {

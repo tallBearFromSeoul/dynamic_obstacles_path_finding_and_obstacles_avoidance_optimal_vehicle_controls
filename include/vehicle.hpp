@@ -7,7 +7,30 @@ typedef Eigen::Vector2f Vec2f;
 typedef Eigen::Vector2d Vec2d;
 typedef Eigen::Vector4f Vec4f;
 
-class Vehicle {
+class Objet {
+	public:
+		enum Shape {
+			CIRCLE, RECTANGLE
+		};
+		enum Type {
+			STATIC, DYNAMIC//, HYBRID
+		};
+		enum Behaviour {
+			NONE, CONTROL, HORZ, VERT, DIAG
+		};
+	protected:
+		Shape _shape;
+		Type _type;
+		Behaviour _behav;
+	public:
+		Shape shape() {return _shape;};
+		Type type() {return _type;};
+		Objet(Shape __shape, Type __type, Behaviour __behav) : _shape(__shape), _type(__type), _behav(__behav) {};
+		//virtual void update();
+};
+
+
+class Vehicle : public Objet {
 	private:
 		float _ts, _lf, _lr;
 
@@ -17,7 +40,7 @@ class Vehicle {
 		float _head;
 
 	public:
-		Vehicle(float __ts, float __lf, float __lr, const Vec4f &__z0) : _ts(__ts), _lf(__lf), _lr(__lr) {
+		Vehicle(Shape __shape, Type __type, float __ts, float __lf, float __lr, const Vec4f &__z0, Behaviour __behav) : Objet(__shape, __type, __behav), _ts(__ts), _lf(__lf), _lr(__lr) {
 			set_state(__z0);
 		};
 		
@@ -44,23 +67,6 @@ class Vehicle {
 };
 
 
-class Objet {
-	public:
-		enum Shape {
-			CIRCLE, RECTANGLE
-		};
-		enum Type {
-			STATIC, DYNAMIC//, HYBRID
-		};	
-	protected:
-		Shape _shape;
-		Type _type;
-	public:
-		Shape shape() {return _shape;};
-		Type type() {return _type;};
-		Objet(Shape __shape, Type __type) : _shape(__shape), _type(__type) {};
-};
-
 typedef Eigen::Matrix<float, 1, 2, Eigen::RowMajor> RowVec2f;
 
 std::random_device _rd;
@@ -77,7 +83,7 @@ class Obs : public Objet {
 		float pos(int i) {return _pos(i);};
 		RowVec2f pos() {return _pos;};
 
-		Obs(Shape __shape, Type __type, const RowVec2f &__pos, float __rad) : _pos(__pos), _rad(__rad), Objet(__shape, __type) {
+		Obs(Shape __shape, Type __type, const RowVec2f &__pos, float __rad, Behaviour __behav) : _pos(__pos), _rad(__rad), Objet(__shape, __type, __behav) {
 			_gen = std::mt19937(_rd());
 			_uni_dis = std::uniform_real_distribution<float>(-0.2,0.2);
 		_norm_dis = std::normal_distribution<float>(0.f, 0.05f);
@@ -86,10 +92,28 @@ class Obs : public Objet {
 		void update() {
 			if (_type != Type::DYNAMIC)
 				return;
+			switch (_behav) {
+				case (Behaviour::NONE):
+					break;
+				case (Behaviour::CONTROL):
+					break;
+				case (Behaviour::HORZ):
+					_pos(0) += 0.01;
+					_pos(1) += 0.015;
+					break;
+				case (Behaviour::VERT):
+					_pos(0) += 0.012;
+					break;
+				case (Behaviour::DIAG):
+					_pos(0) += 0.018;
+					_pos(1) -= 0.03;
+					break;
+			}
+			/*
 			RowVec2f uni = RowVec2f::NullaryExpr(1,2,[&](){return _uni_dis(_gen);});
 			RowVec2f norm = RowVec2f::NullaryExpr(1,2,[&](){return _norm_dis(_gen);});
 			_pos += uni + norm;
-			return;	
+			*/
 		}
 
 		bool collision_free(const RowVec2f &__v, float _col_thresh) {
@@ -107,4 +131,13 @@ class Obs : public Objet {
 
 };
 
+typedef std::shared_ptr<Objet> ObjetPtr;
 typedef std::shared_ptr<Obs> ObsPtr;
+typedef std::shared_ptr<Vehicle> VehiclePtr;
+
+class ObjetFactory {
+	public:
+		ObjetFactory() {};
+		void createObstacle(Objet::Shape __shape, Objet::Type __type, const RowVec2f &__pos, float __rad, std::vector<ObsPtr> &__out, Objet::Behaviour __behav) {__out.push_back(std::make_shared<Obs>(__shape, __type, __pos, __rad, __behav));}
+		void createVehicle(Objet::Shape __shape, float __ts, float __lr, const Vec4f &__state_init, std::vector<VehiclePtr> &__out) {__out.push_back(std::make_shared<Vehicle>(__shape, Objet::Type::DYNAMIC, __ts, __lr, __lr, __state_init, Objet::Behaviour::CONTROL));}
+};

@@ -20,17 +20,20 @@ inline float steer_to_beta(float __rad) {
 namespace {
 	using CppAD::AD;
 	int N;
-	double P = 20.0;
+	double P = 9.0;
+	double Q = 1.0;
+	double R = 0.9;
+	double S = 17.0;
 	// assuming 60 Hz
 	double ts = 0.03333333;
 	//double ts = 0.01666666;//0.025;
 	double lr = 1.738;
 	//double x0U = 20.;
-	double x2U = 12.;
+	double x2U = 9.;
 	float PI = 3.145927;
-	double x3U = deg_to_rad(130);//PI*0.6f;
-	double u0U = 0.8;
-	double u1U = 4.0;
+	double x3U = deg_to_rad(160);//PI*0.6f;
+	double u0U = 0.5;
+	double u1U = 2.0;
 	Vec4f state_init;
 	std::vector<NodePtr> zref;
 	std::vector<ObsPtr> obstacles;
@@ -40,12 +43,12 @@ namespace {
 		private:
 		public:
 			
-			FG_eval(int _time_horizon, float _ts, float _lr, const Vec4f &_state_init, std::vector<NodePtr> &_zref, std::vector<ObsPtr> &_obstacles) {
+			FG_eval(int _time_horizon, float _ts, float _lr, const Vec4f &_state_init, std::vector<NodePtr> *_zref, std::vector<ObsPtr> &_obstacles) {
 				N=_time_horizon;
 				ts = _ts;
 				lr = _lr;
 				state_init = _state_init;
-				zref = _zref;
+				zref = *_zref;
 				
 				n_Sobs = 0;
 				n_Dobs = 0;
@@ -71,9 +74,9 @@ namespace {
 					int px = i*6;
 					int pu = i*4;
 					int pz = i < zref.size() ? i : zref.size()-1;
-					fg[0] += pow(zref[pz]->val(0)-x[px],2)*P + pow(zref[pz]->val(1)-x[px+1], 2)*P + pow(x[pu], 2) + pow(x[pu+1], 2);
+					fg[0] += pow(zref[pz]->val(0)-x[px],2)*P + pow(zref[pz]->val(1)-x[px+1], 2)*P + pow(x[pu], 2)*Q + pow(x[pu+1], 2)*R;
 				}
-				fg[0] += pow(zref[N]->val(0)-x[6*N],2)*P + pow(zref[N]->val(1)-x[6*N+1],2)*P;
+				fg[0] += pow(zref[N]->val(0)-x[6*N],2)*S + pow(zref[N]->val(1)-x[6*N+1],2)*S;
 				// x 0 1 2 3 6 7 8 9 12 13 14 15
 				// u 4 5 10 11 16 17
 				for (int i=1; i<N+1; i++) {
@@ -86,6 +89,15 @@ namespace {
 					fg[pf+1] = x[px+1] - x[ppx+1] - x[ppx+2]*sin(alpha)*ts;
 					fg[pf+2] = x[px+2] - x[ppx+2] - x[pu+1]*ts;
 					fg[pf+3] = x[px+3] - (x[ppx+2]/lr)*sin(x[pu])*ts;
+				}
+				for (int j=0; j<n_Sobs+n_Dobs; j++) {
+					for (int i=0; i<N+1; i++) {
+						int px = i*6;
+						AD<double> dx = x[px]-obstacles[j]->pos(0);
+						AD<double> dy = x[px+1]+obstacles[j]->pos(1);
+						AD<double> val = abs(abs(dx)-obstacles[j]->rad()) + abs(abs(dy)-obstacles[j]->rad());
+						fg[0] -= log(val);
+					}
 				}
 				for (int j=0; j<n_Sobs+n_Dobs; j++) {
 					switch(obstacles[j]->type()) {
@@ -128,7 +140,7 @@ class Optimizer {
 		MatXf inputs() {return _inputs;};
 		Vec2f input_opt() {return _inputs.col(0);};
 
-		bool optimize(const Vec4f &_state_init, std::vector<NodePtr> &_path, std::vector<ObsPtr> &_obstacles) {
+		bool optimize(const Vec4f &_state_init, std::vector<NodePtr> *_path, std::vector<ObsPtr> &_obstacles) {
 			bool ok = true;
 			typedef CPPAD_TESTVECTOR(double) Dvector;
 			int _n_Sobs = 0;
@@ -155,7 +167,7 @@ class Optimizer {
 				xl[p+1] = -100;
 				xu[p+1] = 100;
 				xi[p+2] = 0.0;
-				xl[p+2] = 0.2;
+				xl[p+2] = 0.0;
 				xu[p+2] = x2U;
 				xi[p+3] = 0.0;
 				xl[p+3] = -x3U;
@@ -166,7 +178,7 @@ class Optimizer {
 				xl[p+4] = -u0U;
 				xu[p+4] = u0U;
 				xi[p+5] = 0.0;
-				xl[p+5] = -2*u1U;
+				xl[p+5] = -4*u1U;
 				xu[p+5] = u1U;
 			}
 			for (int i=0; i<4; i++) {
@@ -189,11 +201,10 @@ class Optimizer {
 			for (int j=0; j<_n_Sobs+_n_Dobs; j++) {
 				for (int i=0; i<_N+1; i++) {
 					int p = 4*_N + j*(_N+1) + i;
-					gl[p] = 0.01;
+					gl[p] = 0.00;
 					gu[p] = 1e10;
 				}
 			}
-
 			std::string options;
 			// Use sparse matrices for calculation of Jacobians and Hessians
 			// with forward mode for Jacobian (seems to be faster for this case).
