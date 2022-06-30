@@ -20,19 +20,19 @@ inline float steer_to_beta(float __rad) {
 namespace {
 	using CppAD::AD;
 	int N;
-	double P = 9.0;
+	double P = 15.0;
 	double Q = 1.0;
 	double R = 0.9;
-	double S = 17.0;
+	double S = 100.0;
 	// assuming 60 Hz
-	double ts = 0.03333333;
-	//double ts = 0.01666666;//0.025;
+	double dt = 0.03333333;
+	//double dt = 0.01666666;//0.025;
 	double lr = 1.738;
 	//double x0U = 20.;
-	double x2U = 9.;
+	double x2U = 10.;
 	float PI = 3.145927;
 	double x3U = deg_to_rad(160);//PI*0.6f;
-	double u0U = 0.5;
+	double u0U = 0.7;
 	double u1U = 2.0;
 	Vec4f state_init;
 	std::vector<NodePtr> zref;
@@ -43,9 +43,9 @@ namespace {
 		private:
 		public:
 			
-			FG_eval(int _time_horizon, float _ts, float _lr, const Vec4f &_state_init, std::vector<NodePtr> *_zref, std::vector<ObsPtr> &_obstacles) {
+			FG_eval(int _time_horizon, float _dt, float _lr, const Vec4f &_state_init, std::vector<NodePtr> *_zref, std::vector<ObsPtr> &_obstacles) {
 				N=_time_horizon;
-				ts = _ts;
+				dt = _dt;
 				lr = _lr;
 				state_init = _state_init;
 				zref = *_zref;
@@ -66,7 +66,7 @@ namespace {
 			};
 			// derived class part of constructor
 			typedef CPPAD_TESTVECTOR( AD<double> ) ADvector;
-			// Evaluation of the objective f(x) and constraints g(x)
+			// Evaluation of the objective f(x) and constraindt g(x)
 			void operator()(ADvector &fg, const ADvector &x) {
 				fg[0]	= 0;
 				fg[0] += pow(zref[0]->val(0)-x[0],2)*P + pow(zref[0]->val(1)-x[1], 2)*P + pow(x[0], 2) + pow(x[1], 2);
@@ -84,11 +84,48 @@ namespace {
 					int px = i*6;
 					int ppx = (i-1)*6;
 					int pu = px-2;
+					
+					AD<double> alpha_1 = x[ppx+3] + x[pu];
+					AD<double> k1_0 = x[ppx+2]*cos(alpha_1);
+					AD<double> k1_1 = x[ppx+2]*sin(alpha_1);
+					AD<double> k1_2 = x[pu+1];
+					AD<double> k1_3 = x[ppx+2]*sin(x[pu])/lr;
+					
+					AD<double> alpha_2 = x[ppx+3] + x[pu] + k1_3*dt;
+					AD<double> k2_0 = (x[ppx+2]+k1_2*dt)*cos(alpha_2);
+					AD<double> k2_1 = (x[ppx+2]+k1_2*dt)*sin(alpha_2);
+					AD<double> k2_2 = x[pu+1];
+					AD<double> k2_3 = (x[ppx+2]+k1_2*dt)*sin(x[pu])/lr;
+					
+					AD<double> alpha_3 = x[ppx+3] + x[pu] + k2_3*dt;
+					AD<double> k3_0 = (x[ppx+2]+k2_2*dt)*cos(alpha_3);
+					AD<double> k3_1 = (x[ppx+2]+k2_2*dt)*sin(alpha_3);
+					AD<double> k3_2 = x[pu+1];
+					AD<double> k3_3 = (x[ppx+2]+k2_2*dt)*sin(x[pu])/lr;
+
+					AD<double> alpha_4 = x[ppx+3] + x[pu] + k3_3*dt;
+					AD<double> k4_0 = (x[ppx+2]+k3_2*dt)*cos(alpha_4);
+					AD<double> k4_1 = (x[ppx+2]+k3_2*dt)*sin(alpha_4);
+					AD<double> k4_2 = x[pu+1];
+					AD<double> k4_3 = (x[ppx+2]+k3_2*dt)*sin(x[pu])/lr;
+
+					AD<double> K_0 = k1_0/6 + k2_0/3 + k3_0/3 + k4_0/6;
+					AD<double> K_1 = k1_1/6 + k2_1/3 + k3_1/3 + k4_1/6;
+					AD<double> K_2 = k1_2/6 + k2_2/3 + k3_2/3 + k4_2/6;
+					AD<double> K_3 = k1_3/6 + k2_3/3 + k3_3/3 + k4_3/6;
+					fg[pf] = x[px] - x[ppx] - K_0*dt;
+					fg[pf+1] = x[px+1] - x[ppx+1] - K_1*dt;
+					fg[pf+2] = x[px+2] - x[ppx+2] - K_2*dt;
+					fg[pf+3] = x[px+3] - x[ppx+3] - K_3*dt;
+
+					// Euler Discretization (not accurate)
+					/*
 					AD<double> alpha = x[ppx+3] + x[pu];
-					fg[pf] = x[px] - x[ppx] - x[ppx+2]*cos(alpha)*ts;
-					fg[pf+1] = x[px+1] - x[ppx+1] - x[ppx+2]*sin(alpha)*ts;
-					fg[pf+2] = x[px+2] - x[ppx+2] - x[pu+1]*ts;
-					fg[pf+3] = x[px+3] - (x[ppx+2]/lr)*sin(x[pu])*ts;
+					fg[pf] = x[px] - x[ppx] - x[ppx+2]*cos(alpha)*dt;
+					fg[pf+1] = x[px+1] - x[ppx+1] - x[ppx+2]*sin(alpha)*dt;
+					fg[pf+2] = x[px+2] - x[ppx+2] - x[pu+1]*dt;
+					fg[pf+3] = x[px+3] - (x[ppx+2]/lr)*sin(x[pu])*dt;
+					*/
 				}
 				for (int j=0; j<n_Sobs+n_Dobs; j++) {
 					for (int i=0; i<N+1; i++) {
@@ -201,7 +238,7 @@ class Optimizer {
 			for (int j=0; j<_n_Sobs+_n_Dobs; j++) {
 				for (int i=0; i<_N+1; i++) {
 					int p = 4*_N + j*(_N+1) + i;
-					gl[p] = 0.00;
+					gl[p] = 1.2;
 					gu[p] = 1e10;
 				}
 			}

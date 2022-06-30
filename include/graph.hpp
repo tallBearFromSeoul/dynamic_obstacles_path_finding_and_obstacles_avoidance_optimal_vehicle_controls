@@ -82,7 +82,8 @@ class Graph {
 			}
 		}
 
-		void dfs_helper(const NodePtr &__src, const NodePtr &__dst, std::vector<NodePtr> __path) {
+		void dfs_helper(const NodePtr &__src, const NodePtr &__dst, std::vector<NodePtr> __path__) {
+			std::vector<NodePtr> __path = __path__;
 			if (_path_found) 
 				return;
 			if (__src == nullptr)

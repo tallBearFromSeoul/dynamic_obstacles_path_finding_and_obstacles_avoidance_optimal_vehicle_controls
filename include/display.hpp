@@ -100,7 +100,7 @@ class Display_Pangolin {
 			d_cam.Activate(s_cam);
 			draw_path(__path);
 			glColor3f(0.3f,0.3f,0.7f);
-			//draw_tree(__rrt);
+			draw_tree(__rrt);
 			glColor3f(0.5f,0.2f,0.8f);
 			draw_obstacles(_obstacles);
 			pangolin::FinishFrame();
@@ -116,7 +116,7 @@ class Display_Pangolin {
 			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 			d_cam.Activate(s_cam);
 			draw_path(__path);
-			draw_tree(__rrt);
+			//draw_tree(__rrt);
 			draw_obstacles(_obstacles);
 			draw_vehicle(_state);
 			draw_predictions(_pred_states);

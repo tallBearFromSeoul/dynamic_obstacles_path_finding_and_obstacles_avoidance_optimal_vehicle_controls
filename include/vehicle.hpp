@@ -32,7 +32,7 @@ class Objet {
 
 class Vehicle : public Objet {
 	private:
-		float _ts, _lf, _lr;
+		float _dt, _lf, _lr;
 
 		float _x;
 		float _y;
@@ -40,7 +40,7 @@ class Vehicle : public Objet {
 		float _head;
 
 	public:
-		Vehicle(Shape __shape, Type __type, float __ts, float __lf, float __lr, const Vec4f &__z0, Behaviour __behav) : Objet(__shape, __type, __behav), _ts(__ts), _lf(__lf), _lr(__lr) {
+		Vehicle(Shape __shape, Type __type, float __ts, float __lf, float __lr, const Vec4f &__z0, Behaviour __behav) : Objet(__shape, __type, __behav), _dt(__ts), _lf(__lf), _lr(__lr) {
 			set_state(__z0);
 		};
 		
@@ -55,14 +55,43 @@ class Vehicle : public Objet {
 			_head = _state(3);
 		}
 
-		Vec4f update(const Vec2f &__z) {
-			float _beta = __z(0);
-			float alpha = _head + _beta;
-			_x += _v * cos(alpha) * _ts;
-			_y += _v * sin(alpha) * _ts;
-			_head += (_v/_lr) * sin(_beta) * _ts;
-			_v += __z(1) * _ts;
+		float d_x(float __v, float __head, float __beta) {
+			return __v*cos(__head+__beta);
+		}
+		float d_y(float __v, float __head, float __beta) {
+			return __v*sin(__head+__beta);
+		}
+		float d_v(float __a) {
+			return __a;
+		}
+		float d_head(float __v, float __beta) {
+			return (__v/_lr) * sin(__beta);
+		}
+		Vec4f d_state(float __v, float __head, float __beta, float __a) {
+			return Vec4f(d_x(__v,__head,__beta), d_y(__v,__head,__beta), d_v(__a), d_head(__v,__beta));
+		}
+		
+		Vec4f update(const Vec2f &__u) {
+			Vec4f k1 = d_state(_v, _head, __u(0), __u(1));
+			Vec4f k2 = d_state(_v+(k1(2)/2)*_dt, _head+(k1(3)/2)*_dt, __u(0), __u(1));
+			Vec4f k3 = d_state(_v+(k2(2)/2)*_dt, _head+(k2(3)/2)*_dt, __u(0), __u(1));
+			Vec4f k4 = d_state(_v+k3(2)*_dt, _head+k3(3)*_dt, __u(0), __u(1));
+			Vec4f res = (k1/6 + k2/3 + k3/3 + k4/6)*_dt;
+			_x += res(0);
+			_y += res(1);
+			_v += res(2);
+			_head += res(3);
 			return state();
+			/*
+			float _beta = __u(0);
+			float alpha = _head + _beta;
+			// Euler Discretization not good approximation
+			_x += _v * cos(alpha) * _dt;
+			_y += _v * sin(alpha) * _dt;
+			_head += (_v/_lr) * sin(_beta) * _dt;
+			_v += __u(1) * _dt;
+			return state();
+			*/
 		}
 };
 
