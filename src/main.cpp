@@ -1,6 +1,9 @@
 #include "rrt.hpp"
 #include "optimizer.hpp"
-#include "display.hpp"
+#include "model.hpp"
+#include "camera.hpp"
+#include "vertices.hpp"
+#include "display_utility.hpp"
 
 int Node::MAXID = 0;
 
@@ -63,8 +66,8 @@ int main(int argc, char* argv[]) {
 	std::vector<Vec4f> trajectory {state_init};
 	
 	
-	Display_Pangolin *dp = new Display_Pangolin(1024, 1024, "display");
-	dp->render(rrt, path_, trajectory, state_init, opt->pred_states(),obstacles);
+	//Display_Pangolin *dp = new Display_Pangolin(1024, 1024, "display");
+	//dp->render(rrt, path_, trajectory, state_init, opt->pred_states(),obstacles);
 
 	Vec4f state = state_init;
 	Vec2f pi = state.block(0,0,2,1);
@@ -107,13 +110,12 @@ int main(int argc, char* argv[]) {
 			i++;
 		}
 		*/
-		dp->render(rrt, path_, trajectory, state, opt->pred_states(),obstacles);
+		//dp->render(rrt, path_, trajectory, state, opt->pred_states(),obstacles);
 	}
 	while(true) {
-		dp->render(rrt, path_, trajectory, state, opt->pred_states(), obstacles);
+		//dp->render(rrt, path_, trajectory, state, opt->pred_states(), obstacles);
 	}
 	
 	return 0;
 }
-
 
