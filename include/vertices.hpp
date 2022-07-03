@@ -1,10 +1,12 @@
+#include "Cubesphere.h"
+
 float vertBoxVertices[] = {
-	0.f,2.f,2.3f,
-	0.f,-2.f,2.3f,
-	0.f,-2.f,0.f,
-	0.f,-2.f,0.f,
-	0.f,2.f,0.f,
-	0.f,2.f,2.3f
+	0.f,0.2f,1.f,
+	0.f,-0.2f,1.f,
+	0.f,-0.2f,0.f,
+	0.f,-0.2f,0.f,
+	0.f,0.2f,0.f,
+	0.f,0.2f,1.f
 };
 
 float planeVertices[] = {
@@ -111,3 +113,4 @@ float cubeVertices[] = {
 	-0.5f, 0.5f,-0.5f, 0.0f,1.0f
 };
 
+Cubesphere cubesphere(1.f,2, true);

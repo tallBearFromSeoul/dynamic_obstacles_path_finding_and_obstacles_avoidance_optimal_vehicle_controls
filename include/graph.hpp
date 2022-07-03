@@ -63,7 +63,17 @@ class Graph {
 			std::vector<NodePtr> __path;
 			dfs_helper(__src, __dst, __path);
 		}
-		void dfs(NodePtr &__n_cur, const std::vector<NodePtr> &__nbs, const NodePtr &__dst) {
+
+		void dfs(const NodePtr &__n_cur, const NodePtr &__n_near, const NodePtr &__dst) {
+			dfs(__n_near, __dst);
+			if (_path_found) {
+				add_edge(__n_cur, __n_near);
+				_path.insert(_path.begin(), __n_cur);
+				return;
+			}
+		}
+
+		void dfs(const NodePtr &__n_cur, const std::vector<NodePtr> &__nbs, const NodePtr &__dst) {
 			for (const NodePtr &__nb : __nbs) {
 				dfs(__nb, __dst);
 				if (_path_found) {
@@ -73,17 +83,8 @@ class Graph {
 				}
 			}
 		}
-		void dfs(const std::vector<NodePtr> &__nbs, const NodePtr &__dst) {
-			for (const NodePtr &__nb : __nbs) {
-				dfs(__nb, __dst);
-				if (_path_found) {
-					return;
-				}
-			}
-		}
-
-		void dfs_helper(const NodePtr &__src, const NodePtr &__dst, std::vector<NodePtr> __path__) {
-			std::vector<NodePtr> __path = __path__;
+		
+		void dfs_helper(const NodePtr &__src, const NodePtr &__dst, std::vector<NodePtr> __path) {
 			if (_path_found) 
 				return;
 			if (__src == nullptr)

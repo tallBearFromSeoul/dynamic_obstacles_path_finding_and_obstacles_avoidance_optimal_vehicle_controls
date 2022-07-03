@@ -7,6 +7,7 @@ typedef Eigen::Vector2f Vec2f;
 typedef Eigen::Vector2d Vec2d;
 typedef Eigen::Vector4f Vec4f;
 
+
 class Objet {
 	public:
 		enum Shape {
@@ -16,7 +17,7 @@ class Objet {
 			STATIC, DYNAMIC//, HYBRID
 		};
 		enum Behaviour {
-			NONE, CONTROL, HORZ, VERT, DIAG
+			NONE, CONTROL, HORZ, VERT, DIAG, NEGVERT, NEGDIAG
 		};
 	protected:
 		Shape _shape;
@@ -131,12 +132,19 @@ class Obs : public Objet {
 					_pos(1) += 0.015;
 					break;
 				case (Behaviour::VERT):
-					_pos(0) += 0.012;
+					_pos(1) += 0.012;
 					break;
 				case (Behaviour::DIAG):
 					_pos(0) += 0.018;
 					_pos(1) -= 0.03;
 					break;
+				case (Behaviour::NEGVERT):
+					_pos(1) -= 0.012;
+					break;
+				case (Behaviour::NEGDIAG):
+					_pos(0) -= 0.04;
+					_pos(1) -= 0.04;
+
 			}
 			/*
 			RowVec2f uni = RowVec2f::NullaryExpr(1,2,[&](){return _uni_dis(_gen);});

@@ -15,8 +15,8 @@ class RRT : public kdTree, public Graph {
 		const float PI = 3.145927;
 		const float DEST_THRESH = 0.5f;
 		const float COL_THRESH = 0.1f; 
-		float SPEED_LIMIT = 1.2f;
-		float STEER_LIMIT = 40.f;//40.f
+		float SPEED_LIMIT = 1.1f;
+		float STEER_LIMIT = 45.f;//40.f
 
 		std::random_device _rd;
 		std::mt19937 _gen;
@@ -133,8 +133,8 @@ class RRT : public kdTree, public Graph {
 
 class RRTStar : public RRT {
 	protected:
-			const float NEIGH_THRESH = 4.0f;
-		const int REBUILD_ITER_MAX = 1000;
+			const float NEIGH_THRESH = 2.0f;
+		const int REBUILD_ITER_MAX = 20;
 		std::unordered_map<int, float> _nid2cost_map;
 		NodePtr n_dest;
 	public:
@@ -145,10 +145,9 @@ class RRTStar : public RRT {
 			Status status, latest_status;
 			NodePtr last_node = nullptr;
 			_nid2cost_map[_kd_root->id()] = 0.f;
-			std::vector<NodePtr> n_init = {_kd_root};
 			for (int i=0; i<__k; i++) {
 				RowVec2f v_rand = random_config(last_node);
-				status = extend(v_rand, last_node, latest_status, true, n_init);
+				status = extend(v_rand, last_node, latest_status,  _kd_root, false);
 				latest_status = status;
 				if (status==RRT::Status::REACHED) {
 					return status;
@@ -161,24 +160,37 @@ class RRTStar : public RRT {
 			Status status, latest_status;
 			NodePtr n_cur, n_near, last_node;
 			n_cur = std::make_shared<Node>(__cur_p);
+			last_node = n_cur;
+			for (int i=0; i<REBUILD_ITER_MAX; i++) {
+				RowVec2f v_rand = random_config(last_node);
+				status = extend(v_rand, last_node, latest_status, n_cur, true);
+				latest_status = status;
+				if (status == RRT::Status::REACHED) {
+					return status;
+				}
+			}
 			n_near = nearest(__cur_p);
 			std::vector<NodePtr> nbs = neighbors(n_near, NEIGH_THRESH);
 			nbs.insert(nbs.begin(), n_near);
+			std::sort(nbs.begin(),nbs.end(),[this](const NodePtr &a, const NodePtr &b) -> bool {return _nid2cost_map[a->id()] < _nid2cost_map[b->id()];});
 			dfs(n_cur, nbs, n_dest);
-			last_node = n_cur;
 			if (!_path_found) {
-				for (int i=0; i<REBUILD_ITER_MAX; i++) {
-					RowVec2f v_rand = random_config(last_node);
-					status = extend(v_rand, last_node, latest_status, true, nbs);
-					latest_status = status;
-					if (status == RRT::Status::REACHED) {
-						return status;
-					}
-				}	
+				for (const NodePtr &__nb : nbs) {
+					last_node = n_cur;	
+					for (int i=0; i<REBUILD_ITER_MAX; i++) {
+						RowVec2f v_rand = random_config(last_node);
+						status = extend(v_rand, last_node, latest_status, __nb, true);
+						latest_status = status;
+						if (status == RRT::Status::REACHED) {
+							return status;
+						}
+					}	
+				}
 			}
 			return status;
-		}	
-		Status extend(const RowVec2f &__v_rand, NodePtr &__last_node, Status latest_status, bool __update_path, const std::vector<NodePtr> &__n_init) {
+		}
+
+		Status extend(const RowVec2f &__v_rand, NodePtr &__last_node, Status latest_status, const NodePtr &__n_init, bool __rebuild) {
 			NodePtr n_near, n_new;
 			n_near = nearest(__v_rand);
 			if (latest_status == Status::TRAPPED) {
@@ -203,9 +215,19 @@ class RRTStar : public RRT {
 				n_dest = std::make_shared<Node>(_v_dest);
 				add_edge(n_min, n_dest);
 				_nid2cost_map[n_dest->id()] = _nid2cost_map[n_min->id()] + (_v_dest-n_min->val()).norm();
-				if (__update_path)
-					dfs(__n_init, n_dest);
-				return Status::REACHED;
+				dfs(__n_init, n_dest);
+				if (_path_found)
+					return Status::REACHED;
+				/*
+				if (__rebuild) {
+					std::vector<NodePtr> nbs = neighbors(__n_init, NEIGH_THRESH);
+					for (const NodePtr &__nb : nbs) {
+						dfs(__nb, n_dest);
+						if (_path_found)
+							return Status::REACHED;
+					}
+				}
+				*/
 			} else {
 				return Status::ADVANCED;
 			}
