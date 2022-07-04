@@ -6,30 +6,29 @@
 #include "display_utility.hpp"
 
 int Node::MAXID = 0;
-/*
-void draw_edge(const NodePtr &__src, const NodePtr &__dst) {
+void draw_edge(const NodePtr &__src, const NodePtr &__dst, Shader &shader, unsigned int horzBoxVAO, unsigned int horzBoxVBO) {
 	float x0, y0, x1, y1;
 	x0 = __src->val(0);
 	y0 = __src->val(1);
 	x1 = __dst->val(0);
 	y1 = __dst->val(1);
-	//float head = *(predictions+(i*3)+2);
+	shader.use();
 	glm::mat4 model = glm::mat4(1.0f);
-	model = glm::translate(model, glm::vec3(x0,y0,0));
-	model = glm::rotate(model, head, glm::vec3(0,,1));
-	model = glm::scale(model, glm::vec3(1,scale, scale*2));
+	model = glm::translate(model, glm::vec3(x0,y0,1.5));
+	//model = glm::rotate(model, head, glm::vec3(0,,1));
+	model = glm::scale(model, glm::vec3((1.f+x1-x0),(1.f+y1-y1), 2.f));
 	shader.setMat4("model", model);
 	glBindVertexArray(horzBoxVAO);
 	glDrawArrays(GL_TRIANGLES,0,18);
-	model = glm::rotate(model, glm::radians(90.f), glm::vec3(0,0,1));
-	shader.setMat4("model",model);
+	//model = glm::rotate(model, glm::radians(90.f), glm::vec3(0,0,1));
+	//shader.setMat4("model",model);
 	glDepthMask( GL_TRUE ); 
 	glDisable( GL_BLEND );
 	glBindVertexArray(0);
 
 }
 
-void draw_tree(RRT *__rrt) {
+void draw_tree(RRT *__rrt, Shader &shader, unsigned int horzBoxVAO, unsigned int horzBoxVBO) {
 	std::unordered_map<int, std::vector<int>> adj_list_ = *__rrt->graph();
 	std::unordered_map<int, int> gid2nid_map_ = __rrt->gid2nid_map();
 	std::unordered_map<int, NodePtr> nid2n_map_ = __rrt->nid2n_map();
@@ -37,13 +36,13 @@ void draw_tree(RRT *__rrt) {
 		NodePtr src = nid2n_map_[gid2nid_map_[i]];
 		for (int e_id : adj_list_[i]) {
 			NodePtr dst = nid2n_map_[gid2nid_map_[e_id]];
-			glColor3f(1.f,0.f,0.f);
-			glPointSize(3.f);
-			draw_edge(src, dst);
+			//glColor3f(1.f,0.f,0.f);
+			//glPointSize(3.f);
+			draw_edge(src, dst, shader, horzBoxVAO, horzBoxVBO);
 		}
 	}
 }
-*/
+
 inline glm::mat3 rot_yaw(float __yaw) {
 	float mat_val[9] = {1,0,0,
 											0,cos(__yaw),-sin(__yaw),
@@ -133,6 +132,17 @@ int main(int argc, char* argv[]) {
 	glBufferData(GL_ELEMENT_ARRAY_BUFFER, cubesphere.getIndexSize(), cubesphere.getIndices(), GL_STATIC_DRAW);
 	glBindVertexArray(0);
 
+	// horzBox VAO
+	unsigned int horzBoxVAO, horzBoxVBO;
+	glGenVertexArrays(1, &horzBoxVAO);
+	glGenBuffers(1, &horzBoxVBO);
+	glBindVertexArray(horzBoxVAO);
+	glBindBuffer(GL_ARRAY_BUFFER, horzBoxVBO);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(horzBoxVertices), &horzBoxVertices, GL_STATIC_DRAW);
+	glEnableVertexAttribArray(0);
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+	glBindVertexArray(0);
+
 	// vertBox VAO
 	unsigned int vertBoxVAO, vertBoxVBO;
 	glGenVertexArrays(1, &vertBoxVAO);
@@ -178,6 +188,7 @@ int main(int argc, char* argv[]) {
 	Shader shader_obs_multi_color("../config/obs_multi_color.vs","../config/obs_multi_color.fs");
 	Shader shader_trajectory("../config/traj.vs","../config/traj.fs");
 	Shader shader_path("../config/path.vs","../config/path.fs");
+	Shader shader_tree("../config/tree.vs","../config/tree.fs");
 	//GLModel gl_model("../Material/bus_setia_negara_texturizer.blend");
 	GLModel gl_model("../14-lowpolyfiatuno/LowPolyFiatUNO.obj");
 
@@ -233,9 +244,9 @@ int main(int argc, char* argv[]) {
 		trajectory.push_back(state);
 		std::cout<<"before rrt update()\n";
 		RRT::Status status_update = rrt->update(pi);
+		std::cout<<"path size : "<<path_->size()<<"\n";
 		std::cout<<"after rrt update()\n";
 		path_ = rrt->path();
-		std::cout<<"path size : "<<path_->size()<<"\n";
 		std::cout<<"status update : "<<status_update<<"\n";
 
 		processInput(window);
@@ -251,6 +262,12 @@ int main(int argc, char* argv[]) {
 			view = camera.GetViewMatrix();
 		}
 		projection = glm::perspective(glm::radians(45.f), float(W)/float(H), 0.05f, 90.0f);	
+
+		shader_tree.use();
+		shader_tree.setMat4("model",model);
+		shader_tree.setMat4("view",view);
+		shader_tree.setMat4("projection",projection);
+
 		shader_trajectory.use();
 		shader_trajectory.setMat4("model",model);
 		shader_trajectory.setMat4("view",view);
@@ -365,6 +382,7 @@ int main(int argc, char* argv[]) {
 		shader_trajectory.setMat4("model", model);
 		draw_trajectory(trajectory.size(), trajectory_arr, shader_trajectory, vertBoxVAO, vertBoxVBO);
 
+		draw_tree(rrt, shader_tree, horzBoxVAO, horzBoxVBO); 
 		glfwSwapBuffers(window);
 		glfwPollEvents();	
 		//dp->render(rrt, path_, trajectory, state, opt->pred_states(),obstacles);

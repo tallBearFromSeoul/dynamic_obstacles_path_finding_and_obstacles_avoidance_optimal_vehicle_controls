@@ -19,7 +19,6 @@ class Graph {
 		std::unordered_map<int, int> gid2nid_map() {return _gid2nid_map;};
 		std::unordered_map<int, NodePtr> nid2n_map() {return _nid2n_map;};
 		std::unordered_map<int, std::vector<int>> *graph() {return &_adj_list;};
-		//std::vector<std::vector<int>>* graph() {return &_adj_list;};
 		std::vector<NodePtr>* path() {return &_path;};
 
 		Graph() {};
@@ -29,7 +28,6 @@ class Graph {
 			_nid2gid_map[__n->id()] = _n_nodes;
 			_nid2n_map[__n->id()] = __n;
 			_adj_list[_n_nodes] = {};
-			//_adj_list.resize(_adj_list.size()+1);
 			_n_nodes++;
 		};
 
@@ -57,13 +55,6 @@ class Graph {
 			add_edge(__n_new, __nb);
 		}
 
-		void dfs(const NodePtr &__src, const NodePtr &__dst) {
-			_path_found = false;
-			_path.clear();
-			std::vector<NodePtr> __path;
-			dfs_helper(__src, __dst, __path);
-		}
-
 		void dfs(const NodePtr &__n_cur, const NodePtr &__n_near, const NodePtr &__dst) {
 			dfs(__n_near, __dst);
 			if (_path_found) {
@@ -84,6 +75,13 @@ class Graph {
 			}
 		}
 		
+		void dfs(const NodePtr &__src, const NodePtr &__dst) {
+			_path_found = false;
+			_path.clear();
+			std::vector<NodePtr> __path;
+			dfs_helper(__src, __dst, __path);
+		}
+
 		void dfs_helper(const NodePtr &__src, const NodePtr &__dst, std::vector<NodePtr> __path) {
 			if (_path_found) 
 				return;
@@ -99,6 +97,10 @@ class Graph {
 			for (int e_id : _adj_list[s_id]) {
 				dfs_helper(_nid2n_map[_gid2nid_map[e_id]], __dst, __path);
 			}
+		}
+
+		void bfs_helper(const NodePtr &__src, std::vector<NodePtr> &__path) {
+
 		}
 
 		void print_path() {

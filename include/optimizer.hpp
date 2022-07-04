@@ -20,7 +20,7 @@ inline float steer_to_beta(float __rad) {
 namespace {
 	using CppAD::AD;
 	int N;
-	double P = 100;
+	double P = 10;
 	double Q = 1.0;
 	double R = 0.5;
 	double S = 200.0;

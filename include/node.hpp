@@ -9,19 +9,20 @@ typedef Eigen::Matrix<float, 1, Eigen::Dynamic, Eigen::RowMajor> RowVecXf;
 class Node {
 	protected:
 		typedef std::shared_ptr<Node> NodePtr;
-		//string key;
+		//string key
 		RowVecXf _val;
 		int _id;
 		int _dims;
 		int _n_nodes=0;
 		int _n_edges=0;
+		bool _is_path=false;
 		static int MAXID;
 	public:
 		RowVecXf val() {return _val;};
 		float val(int __idx) {return _val(__idx);};
 		int id() {return _id;};
 		int dims() {return _dims;};
-		
+		bool is_path() {return _is_path;};	
 		Node() {};
 		Node(const NodePtr &__node) : _val(__node->val()) {_dims=_val.cols();};
 		Node(const RowVecXf &__val) : _val(__val) {_id=MAXID++;_dims=_val.cols();};
