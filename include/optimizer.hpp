@@ -22,18 +22,18 @@ namespace {
 	int N;
 	double P = 10;
 	double Q = 1.0;
-	double R = 0.5;
+	double R = 1.0;
 	double S = 200.0;
 	// assuming 60 Hz
 	double dt = 0.03333333;
 	//double dt = 0.01666666;//0.025;
 	double lr = 1.738;
 	//double x0U = 20.;
-	double x2U = 12.;
+	double x2U = 13.;
 	float PI = 3.145927;
 	double x3U = deg_to_rad(125);//PI*0.6f;
-	double u0U = 0.7;
-	double u1U = 1.5;
+	double u0U = 0.6;
+	double u1U = 0.2;
 	Vec4f state_init;
 	std::vector<NodePtr> zref;
 	std::vector<ObsPtr> obstacles;
@@ -244,7 +244,7 @@ class Optimizer {
 			// with forward mode for Jacobian (seems to be faster for this case).
 			options += "Sparse  true        forward\n";
 			// turn off any printing
-			options += "Integer print_level 5\n";
+			options += "Integer print_level 0\n";
 			options += "String  sb        yes\n";
 			// maximum number of iterations
 			options += "Integer max_iter    50\n";

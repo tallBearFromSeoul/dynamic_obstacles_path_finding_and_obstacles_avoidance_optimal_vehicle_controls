@@ -4,6 +4,7 @@
 #include "camera.hpp"
 #include "vertices.hpp"
 #include "display_utility.hpp"
+//#include "display.hpp"
 
 int Node::MAXID = 0;
 void draw_edge(const NodePtr &__src, const NodePtr &__dst, Shader &shader, unsigned int horzBoxVAO, unsigned int horzBoxVBO) {
@@ -14,7 +15,7 @@ void draw_edge(const NodePtr &__src, const NodePtr &__dst, Shader &shader, unsig
 	y1 = __dst->val(1);
 	shader.use();
 	glm::mat4 model = glm::mat4(1.0f);
-	model = glm::translate(model, glm::vec3(x0,y0,1.5));
+	model = glm::translate(model, glm::vec3(x0,y0,0.1));
 	//model = glm::rotate(model, head, glm::vec3(0,,1));
 	model = glm::scale(model, glm::vec3((1.f+x1-x0),(1.f+y1-y1), 2.f));
 	shader.setMat4("model", model);
@@ -78,6 +79,7 @@ int main(int argc, char* argv[]) {
 	RowVec2f op2 = {8,11};
 	RowVec2f op3 = {3,10};
 	RowVec2f op4 = {15,20};
+	RowVec2f op5 = {5,5};
 
 	cubesphere.printSelf();
 	glfwInit();
@@ -86,7 +88,7 @@ int main(int argc, char* argv[]) {
 	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 	glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
 
-	GLFWwindow* window = glfwCreateWindow(W, H, "LearnOpenGL", nullptr, nullptr);
+	GLFWwindow* window = glfwCreateWindow(W, H, "MPC_dynamic_environment_3D_rendering", nullptr, nullptr);
 	if (window == nullptr) {
 		std::cout<<"Failed to create GLFW window"<<"\n";
 		glfwTerminate();
@@ -199,16 +201,18 @@ int main(int argc, char* argv[]) {
 	factory->createObstacle(Objet::Shape::CIRCLE, Objet::Type::DYNAMIC, op2, 1.f, obstacles, Objet::Behaviour::HORZ);
 	factory->createObstacle(Objet::Shape::CIRCLE, Objet::Type::DYNAMIC, op3, 1.f, obstacles, Objet::Behaviour::DIAG);
 	factory->createObstacle(Objet::Shape::CIRCLE, Objet::Type::DYNAMIC, op4, 1.f, obstacles, Objet::Behaviour::NEGDIAG);
+	factory->createObstacle(Objet::Shape::CIRCLE, Objet::Type::DYNAMIC, op5, 1.f, obstacles, Objet::Behaviour::DIAG);
 
 	int n_obs = obstacles.size();
+	//Display_Pangolin *dp = new Display_Pangolin(1920,1080,"MPC_dynamic_environment_2D_rendering");
 
-	RRTStar *rrt = new RRTStar(v_init, v_dest, &obstacles, RRT_ITER_MAX);
+	BRRTStar *rrt = new BRRTStar(v_init, v_dest, &obstacles, RRT_ITER_MAX);
 	while (rrt->build_status()!=RRT::Status::REACHED) {
 		delete rrt;
 		std::cout<<"reinstantiating rrtstar\n";
-		rrt = new RRTStar(v_init, v_dest, &obstacles, RRT_ITER_MAX);
+		rrt = new BRRTStar(v_init, v_dest, &obstacles, RRT_ITER_MAX);
 	}
-	std::vector<NodePtr> *path_ = rrt->path();
+	std::vector<NodePtr> path_ = *rrt->path();
 	Optimizer *opt = new Optimizer(N, ts, lr);
 	std::vector<VehiclePtr> vehicles;
 	factory->createVehicle(Objet::Shape::CIRCLE, ts, lr, state_init, vehicles);
@@ -225,16 +229,16 @@ int main(int argc, char* argv[]) {
 		lastFrame = currentFrame;
 		
 		processInput(window);
-		if (path_->size() < N+1) {
+		if (path_.size() < N+1) {
 			delete opt;
-			prev = path_->size()-1;
-			opt = new Optimizer(path_->size()-1, ts, lr);
-		} else if (prev != N && path_->size() >= N+1) {
+			prev = path_.size()-1;
+			opt = new Optimizer(path_.size()-1, ts, lr);
+		} else if (prev != N && path_.size() >= N+1) {
 			delete opt;
 			prev = N;
 			opt = new Optimizer(N, ts, lr);
 		}
-		opt->optimize(state, path_, obstacles);
+		opt->optimize(state, &path_, obstacles);
 		Vec2f u_opt = opt->input_opt();
 		for (ObsPtr &__obs : obstacles) {
 			__obs->update();
@@ -242,12 +246,8 @@ int main(int argc, char* argv[]) {
 		state = vehicle->update(u_opt);	
 		pi = state.block(0,0,2,1);
 		trajectory.push_back(state);
-		std::cout<<"before rrt update()\n";
-		RRT::Status status_update = rrt->update(pi);
-		std::cout<<"path size : "<<path_->size()<<"\n";
-		std::cout<<"after rrt update()\n";
-		path_ = rrt->path();
-		std::cout<<"status update : "<<status_update<<"\n";
+		//path_ = rrt->path();
+		path_ = rrt->update(pi);
 
 		processInput(window);
 		glClearColor(0.7f, 0.7f, 0.7f, 0.5f);
@@ -335,14 +335,14 @@ int main(int argc, char* argv[]) {
 		shader_mesh.setMat4("model",model);
 		gl_model.Draw(shader_mesh);
 	
-		float path_arr[3*path_->size()];
-		for (int i=0; i<path_->size(); i++) {
+		float path_arr[3*path_.size()];
+		for (int i=0; i<path_.size(); i++) {
 			int p = i*3;
-			path_arr[p] = path_->at(i)->val(0);
-			path_arr[p+1] = path_->at(i)->val(1);
+			path_arr[p] = path_.at(i)->val(0);
+			path_arr[p+1] = path_.at(i)->val(1);
 			path_arr[p+2] = 0.f;
 		}
-		draw_path(path_->size(), path_arr, shader_path, vertBoxVAO, vertBoxVBO);
+		draw_path(path_.size(), path_arr, shader_path, vertBoxVAO, vertBoxVBO);
 
 		float obs_arr[3*obstacles.size()];
 		float obs_rad[obstacles.size()];
@@ -382,10 +382,10 @@ int main(int argc, char* argv[]) {
 		shader_trajectory.setMat4("model", model);
 		draw_trajectory(trajectory.size(), trajectory_arr, shader_trajectory, vertBoxVAO, vertBoxVBO);
 
-		draw_tree(rrt, shader_tree, horzBoxVAO, horzBoxVBO); 
+		//draw_tree(rrt, shader_tree, horzBoxVAO, horzBoxVBO); 
+		//dp->render(rrt, &path_, trajectory, state, opt->pred_states(),obstacles);
 		glfwSwapBuffers(window);
 		glfwPollEvents();	
-		//dp->render(rrt, path_, trajectory, state, opt->pred_states(),obstacles);
 	}
 	glfwTerminate();
 	return 0;

@@ -15,22 +15,21 @@ class Node {
 		int _dims;
 		int _n_nodes=0;
 		int _n_edges=0;
-		bool _is_path=false;
+		bool _is_leaf=true;
 		static int MAXID;
 	public:
-		RowVecXf val() {return _val;};
-		float val(int __idx) {return _val(__idx);};
-		int id() {return _id;};
-		int dims() {return _dims;};
-		bool is_path() {return _is_path;};	
+		RowVecXf val() {return _val;}
+		float val(int __idx) {return _val(__idx);}
+		int id() {return _id;}
+		int dims() {return _dims;}
+		bool is_leaf() {return _is_leaf;}
+		void set_branch() {_is_leaf=false;}
+
 		Node() {};
 		Node(const NodePtr &__node) : _val(__node->val()) {_dims=_val.cols();};
 		Node(const RowVecXf &__val) : _val(__val) {_id=MAXID++;_dims=_val.cols();};
-		virtual void report() {
-			std::cout<<"[Node id, val] : ["<<id()<<" , "<<val()<<"]\n";			
-		}
+		
 };
-
 
 class TreeNode : public Node {
 	typedef std::shared_ptr<TreeNode> TreeNodePtr;

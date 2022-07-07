@@ -1,12 +1,12 @@
 #include "Cubesphere.h"
 
 float horzBoxVertices[] = {
-	0.1f, 0.05f,    0.f,
-	0.1f, -0.05f,   0.f,
-	0.f, -0.05f,   0.f,
-	0.f, -0.05f,   0.f,
-	0.f, 0.05f,    0.f,
-	0.1f, 0.05f,    0.f
+	0.1f, 0.01f,    0.f,
+	0.1f, -0.01f,   0.f,
+	0.f, -0.01f,   0.f,
+	0.f, -0.01f,   0.f,
+	0.f, 0.01f,    0.f,
+	0.1f, 0.01f,    0.f
 };
 
 float vertBoxVertices[] = {
