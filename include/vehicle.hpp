@@ -1,11 +1,13 @@
+#include "grv.hpp"
 #include <random>
 #include <vector>
 #include <cmath>
-#include <Eigen/Dense>
+#include <iostream>
 
 typedef Eigen::Vector2f Vec2f;
-typedef Eigen::Vector2d Vec2d;
 typedef Eigen::Vector4f Vec4f;
+typedef Eigen::Matrix2f Mat2f;
+typedef Eigen::Matrix4f Mat4f;
 
 
 class Objet {
@@ -102,28 +104,68 @@ typedef Eigen::Matrix<float, 1, 2, Eigen::RowMajor> RowVec2f;
 std::random_device _rd;
 class Obs : public Objet {
 	private:
-		float _rad;
-		RowVec2f _pos;
+		static int MAXID;
+		int _id;
 		std::mt19937 _gen;
-		std::uniform_real_distribution<float> _uni_dis;
-		std::normal_distribution<float> _norm_dis;
+		std::uniform_real_distribution<float> _uni_dis_x;
+		std::uniform_real_distribution<float> _uni_dis_y;
+		std::uniform_real_distribution<float> _uni_dis_vel;
+		std::uniform_real_distribution<float> _uni_dis_p;
 
-	public:
-		float rad() {return _rad;};
-		float pos(int i) {return _pos(i);};
-		RowVec2f pos() {return _pos;};
-
-		Obs(Shape __shape, Type __type, const RowVec2f &__pos, float __rad, Behaviour __behav) : _pos(__pos), _rad(__rad), Objet(__shape, __type, __behav) {
-			_gen = std::mt19937(_rd());
-			_uni_dis = std::uniform_real_distribution<float>(-0.2,0.2);
-		_norm_dis = std::normal_distribution<float>(0.f, 0.05f);
-		};
+		float _rad;
+		float _dt = 0.03333333f;
+		RowVec2f _pos;
+		RowVec2f _E;
+		RowVec2f _vel;
+		Vec4f _noise;
 		
+	public:
+		void update_noise(const Vec4f &__noise) {_noise = __noise;}
+		int id() {return _id;}
+		float rad() {return _rad;}
+		float pos(int i) {return _pos(i);}
+		float vel(int i) {return _vel(i);}
+		RowVec2f pos() {return _pos;}
+		RowVec2f vel() {return _vel;}
+		Vec4f sensor_noise() {return _noise;}
+		Vec4f state() {return Vec4f(_pos(0), _pos(1), _vel(0), _vel(1));}
+
+		Obs(float *max_bounds) : Objet(Shape::CIRCLE, Type::DYNAMIC, Behaviour::NONE) {
+			_id = MAXID++;
+			// https://www.researchgate.net/post/Kalman_filter_how_do_I_choose_initial_P_0
+			// from this website, decided to initialize the covariance matrix to be at max 0.01.
+			float x_l = max_bounds[0];
+			float x_u = max_bounds[1];
+			float y_l = max_bounds[2];
+			float y_u = max_bounds[3];
+			float v_l = max_bounds[4];
+			float v_u = max_bounds[5];
+
+			_rad = 1.f;
+			_gen = std::mt19937(_rd());
+			_uni_dis_x = std::uniform_real_distribution<float>(x_l, x_u);
+			_uni_dis_y = std::uniform_real_distribution<float>(y_l, y_u);
+			_uni_dis_vel = std::uniform_real_distribution<float>(v_l, v_u);
+			_uni_dis_p = std::uniform_real_distribution<float>(0.f, 1.f);
+
+			_pos(0) = _uni_dis_x(_gen);
+			_pos(1) = _uni_dis_y(_gen);
+			_vel = RowVec2f::NullaryExpr(1,2,[&](){
+					if (_uni_dis_p(_gen) > 0.5f)
+						return _uni_dis_vel(_gen);
+					else
+						return -_uni_dis_vel(_gen);
+			});
+			//_vel = RowVec2f::NullaryExpr(1,2,[&](){return _norm_dis_vel(_gen);});
+		}
+
 		void update() {
 			if (_type != Type::DYNAMIC)
 				return;
 			switch (_behav) {
 				case (Behaviour::NONE):
+					_pos(0) += _vel(0)*_dt;
+					_pos(1) += _vel(1)*_dt;
 					break;
 				case (Behaviour::CONTROL):
 					break;
@@ -146,11 +188,6 @@ class Obs : public Objet {
 					_pos(1) -= 0.04;
 
 			}
-			/*
-			RowVec2f uni = RowVec2f::NullaryExpr(1,2,[&](){return _uni_dis(_gen);});
-			RowVec2f norm = RowVec2f::NullaryExpr(1,2,[&](){return _norm_dis(_gen);});
-			_pos += uni + norm;
-			*/
 		}
 
 		bool collision_free(const RowVec2f &__v, float _col_thresh) {
@@ -172,9 +209,89 @@ typedef std::shared_ptr<Objet> ObjetPtr;
 typedef std::shared_ptr<Obs> ObsPtr;
 typedef std::shared_ptr<Vehicle> VehiclePtr;
 
-class ObjetFactory {
+class Li_Radar {
+	private:
+		float _range;
+		Vec4f _mu;
+		Mat4f _cov;
+		GRV *_sensor_noise;
+
 	public:
-		ObjetFactory() {};
-		void createObstacle(Objet::Shape __shape, Objet::Type __type, const RowVec2f &__pos, float __rad, std::vector<ObsPtr> &__out, Objet::Behaviour __behav) {__out.push_back(std::make_shared<Obs>(__shape, __type, __pos, __rad, __behav));}
-		void createVehicle(Objet::Shape __shape, float __ts, float __lr, const Vec4f &__state_init, std::vector<VehiclePtr> &__out) {__out.push_back(std::make_shared<Vehicle>(__shape, Objet::Type::DYNAMIC, __ts, __lr, __lr, __state_init, Objet::Behaviour::CONTROL));}
+		Mat4f cov() {return _cov;}
+
+		Li_Radar(float __range) : _range(__range) {
+			_mu = Vec4f::Zero();
+			//_cov = Mat4f::Zero();
+			_cov << 0.04f,0.f,0.f,0.f,
+							0.f,0.04f,0.f,0.f,
+							0.f,0.f,0.001f,0.f,
+							0.f,0.f,0.f,0.001f;
+			_sensor_noise = new GRV(_mu, _cov);
+		}
+
+		void scan(const Vec2f &__pos, std::vector<ObsPtr> *__all_obstacles, std::vector<ObsPtr> &obstacles_in_range__) {
+			RowVec2f pos(__pos(0), __pos(1));
+			scan(pos, __all_obstacles, obstacles_in_range__);
+		}
+
+		void scan(const RowVec2f &__pos, std::vector<ObsPtr> *__all_obstacles, std::vector<ObsPtr> &obstacles_in_range__) {
+			for (const ObsPtr &__obs : *__all_obstacles) {
+				if (in_range(__pos, __obs)) {
+					Vec4f v = _sensor_noise->sample();
+					__obs->update_noise(v);
+					obstacles_in_range__.push_back(__obs);
+				}
+			}
+			//std::cout<<"out of #"<<__all_obstacles->size()<<" amount of obstacles, there are #"<<obstacles_in_range__.size()<<" of obstacles in range of "<<_range<<"\n";
+		}
+		
+		bool in_range(const RowVec2f &__pos, const ObsPtr &__obs) {
+			float norm = (__pos-__obs->pos()).norm();
+			return norm < _range;
+		}
 };
+
+class World {
+	private:
+		Vehicle *_vehicle;
+		std::vector<ObsPtr> _obstacles;
+
+	public:
+		Vehicle *vehicle() {return _vehicle;}
+		std::vector<ObsPtr> *obstacles() {return &_obstacles;}
+
+		World() {}
+		World(Vehicle *__vehicle, const std::vector<ObsPtr> &__obstacles) : _vehicle(__vehicle), _obstacles(__obstacles) {}
+
+		void add_to_world(Vehicle *__vehicle) {
+			_vehicle = __vehicle;
+		}
+		void add_to_world(const ObsPtr &__obs) {
+			_obstacles.push_back(__obs);
+		}
+		void update() {
+			//if (_vehicle != nullptr)
+			//	_vehicle->update();
+			for (const ObsPtr &__obs : _obstacles) {
+				__obs->update();
+			}
+		}
+};
+
+
+class ObjetFactory {
+	private:
+	public:
+		ObjetFactory() {}
+
+		void createNObstacles(int __N, float *__max_bounds, std::vector<ObsPtr> *out__) {
+			for (int i=0; i<__N; i++) {
+				out__->push_back(std::make_shared<Obs>(__max_bounds));
+			}
+		}
+		void createVehicle(Objet::Shape __shape, float __ts, float __lr, const Vec4f &__state_init, std::vector<VehiclePtr> &__out) {
+			__out.push_back(std::make_shared<Vehicle>(__shape, Objet::Type::DYNAMIC, __ts, __lr, __lr, __state_init, Objet::Behaviour::CONTROL));
+		}
+};
+
+
