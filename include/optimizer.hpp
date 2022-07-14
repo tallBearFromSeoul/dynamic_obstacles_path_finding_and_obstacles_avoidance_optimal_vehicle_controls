@@ -1,5 +1,4 @@
 #include <cppad/ipopt/solve.hpp>
-#include "kf.hpp"
 
 typedef Eigen::Vector2f Vec2f;
 typedef Eigen::Matrix<float, 4, 2> Mat42f;
@@ -20,39 +19,37 @@ inline float steer_to_beta(float __rad) {
 
 namespace {
 	using CppAD::AD;
-	const float COL_THRESH = 0.4f;
 	int N;
-	double P = 3.0;
-	double Q = 0.1;
-	double R = 0.5;
-	double S = 80.0;
-	// assuming 30 Hz
+	double P = 10;
+	double Q = 1.0;
+	double R = 1.0;
+	double S = 200.0;
+	// assuming 60 Hz
 	double dt = 0.03333333;
+	//double dt = 0.01666666;//0.025;
 	double lr = 1.738;
 	//double x0U = 20.;
-	double x2U = 8.;
+	double x2U = 13.;
 	float PI = 3.145927;
-	double x3U = deg_to_rad(155);//PI*0.6f;
-	double u0U = 0.9;
-	double u1U = 0.6;
+	double x3U = deg_to_rad(125);//PI*0.6f;
+	double u0U = 0.6;
+	double u1U = 0.2;
 	Vec4f state_init;
 	std::vector<NodePtr> zref;
 	std::vector<ObsPtr> obstacles;
 	int n_Sobs, n_Dobs;
-	KF *kf;
-	
+
 	class FG_eval {
 		private:
 		public:
 			
-			FG_eval(int _time_horizon, float _dt, float _lr, const Vec4f &_state_init, std::vector<NodePtr> *_zref, std::vector<ObsPtr> &_obstacles, KF *__kf) {
+			FG_eval(int _time_horizon, float _dt, float _lr, const Vec4f &_state_init, std::vector<NodePtr> *_zref, std::vector<ObsPtr> &_obstacles) {
 				N=_time_horizon;
 				dt = _dt;
 				lr = _lr;
 				state_init = _state_init;
 				zref = *_zref;
-				kf = __kf;
-
+				
 				n_Sobs = 0;
 				n_Dobs = 0;
 				obstacles = _obstacles;
@@ -77,9 +74,7 @@ namespace {
 					int px = i*6;
 					int pu = i*4;
 					int pz = i < zref.size() ? i : zref.size()-1;
-					AD<double> zero(0.);
-					AD<double> accel = CppAD::CondExpLt(x[pu+1],zero,zero,x[pu+1]);
-					fg[0] += CppAD::pow(zref[pz]->val(0)-x[px],2)*P + CppAD::pow(zref[pz]->val(1)-x[px+1], 2)*P + x[pu]*x[pu]*Q + accel*accel*R;
+					fg[0] += CppAD::pow(zref[pz]->val(0)-x[px],2)*P + CppAD::pow(zref[pz]->val(1)-x[px+1], 2)*P + CppAD::pow(x[pu], 2)*Q + CppAD::pow(x[pu+1], 2)*R;
 				}
 				fg[0] += CppAD::pow(zref.back()->val(0)-x[6*N],2)*S + CppAD::pow(zref.back()->val(1)-x[6*N+1],2)*S;
 
@@ -123,6 +118,7 @@ namespace {
 					fg[pf+1] = x[px+1] - x[ppx+1] - K_1*dt;
 					fg[pf+2] = x[px+2] - x[ppx+2] - K_2*dt;
 					fg[pf+3] = x[px+3] - x[ppx+3] - K_3*dt;
+
 					// Euler Discretization (not accurate)
 					/*
 					AD<double> alpha = x[ppx+3] + x[pu];
@@ -131,15 +127,6 @@ namespace {
 					fg[pf+2] = x[px+2] - x[ppx+2] - x[pu+1]*dt;
 					fg[pf+3] = x[px+3] - (x[ppx+2]/lr)*CppAD::sin(x[pu])*dt;
 					*/
-				}
-				// rate limitting for the input steering and acceleration
-				for (int i=0; i<N-1; i++) {
-					int pu = (i+1)*6+4;
-					int ppu = i*6+4;
-					int pf = 4*N+1 + i*2;
-					fg[pf] = (x[pu] - x[ppu])/dt;
-					fg[pf+1] = (x[pu+1] - x[ppu+1])/dt;
-					fg[0] += (x[pu] - x[ppu])/dt + (x[pu+1] - x[ppu+1])/dt;
 				}
 				/*
 				for (int j=0; j<n_Sobs+n_Dobs; j++) {
@@ -153,29 +140,16 @@ namespace {
 				}
 				*/
 				for (int j=0; j<n_Sobs+n_Dobs; j++) {
-					int obs_id = obstacles[j]->id();
-					AD<double> rad = obstacles[j]->rad();
-					Vec4f state_est = kf->xm(obs_id);
-					Mat4f cov = kf->Pm(obs_id);
-					AD<double> var = cov(0,0);
-					AD<double> obs_x = state_est(0);
-					AD<double> obs_y = state_est(1);
 					for (int i=0; i<N+1; i++) {
 						int px = i*6;
-						int pf = 4*N+1 + 2*(N-1) + j*(N+1) + i;
-						if (i != 0) {
-							obs_x = obs_x + state_est(2)*dt;
-							obs_y = obs_y + state_est(3)*dt;
-						}
+						// this is correct
+						int pf = 4*N+1 + j*(N+1) + i;
+						AD<double> obs_x = obstacles[j]->pos(0);
+						AD<double> obs_y = obstacles[j]->pos(1);
 						AD<double> dx = x[px]-obs_x;
 						AD<double> dy = x[px+1]-obs_y;
-						AD<double> c = CppAD::pow(dx, 2) + CppAD::pow(dy, 2) - CppAD::pow(rad+var+COL_THRESH,2);
-						fg[pf] = c;
-						AD<double> one(1.f);
-						AD<double> zero(0.f);
-						AD<double> val = CppAD::CondExpLt(c, one, c, zero);
-						fg[0] += CppAD::CondExpGt(val, zero, -CppAD::log(val), zero);
-
+						//fg[pf] = CppAD::abs(dx)-obstacles[j]->rad() + CppAD::abs(dy)-obstacles[j]->rad();
+						fg[pf] = CppAD::pow(dx, 2) + CppAD::pow(dy, 2);
 					}
 				}
 		}
@@ -199,7 +173,7 @@ class Optimizer {
 		MatXf inputs() {return _inputs;};
 		Vec2f input_opt() {return _inputs.col(0);};
 
-		bool optimize(const Vec4f &_state_init, std::vector<NodePtr> *_path, std::vector<ObsPtr> &_obstacles, KF *__kf) {
+		bool optimize(const Vec4f &_state_init, std::vector<NodePtr> *_path, std::vector<ObsPtr> &_obstacles) {
 			bool ok = true;
 			typedef CPPAD_TESTVECTOR(double) Dvector;
 			int _n_Sobs = 0;
@@ -214,7 +188,7 @@ class Optimizer {
 						break;
 				}
 			}
-			size_t ng = 4*(_N) + 2*(_N-1) + (_n_Sobs+_n_Dobs)*(_N+1);
+			size_t ng = 4*(_N) + (_n_Sobs+_n_Dobs)*(_N+1);
 			size_t nx = 2*_N + 4*(_N+1);
 			Dvector xi(nx), xl(nx), xu(nx);
 			for (int i=0; i<_N+1; i++) {
@@ -237,7 +211,7 @@ class Optimizer {
 				xl[p+4] = -u0U;
 				xu[p+4] = u0U;
 				xi[p+5] = 0.0;
-				xl[p+5] = -4*u1U;
+				xl[p+5] = -2*u1U;
 				xu[p+5] = u1U;
 			}
 			for (int i=0; i<4; i++) {
@@ -257,17 +231,11 @@ class Optimizer {
 				gl[p+3] = 0.0;
 				gu[p+3] = 0.0;
 			}
-			for (int i=0; i<N-1; i++) {
-				int p = 4*_N + i*2;
-				gl[p] = -0.7;
-				gu[p] = 0.7;
-				gl[p+1] = -0.5;
-				gu[p+1] = 0.2;
-			}
 			for (int j=0; j<_n_Sobs+_n_Dobs; j++) {
 				for (int i=0; i<_N+1; i++) {
-					int p = 4*_N + 2*(_N-1) + j*(_N+1) + i;
-					gl[p] = 0;
+					int p = 4*_N + j*(_N+1) + i;
+					gl[p] = CppAD::pow(_obstacles[j]->rad(),2);
+					//gl[p] = 0.0;
 					gu[p] = 1e13;
 				}
 			}
@@ -279,13 +247,13 @@ class Optimizer {
 			options += "Integer print_level 0\n";
 			options += "String  sb        yes\n";
 			// maximum number of iterations
-			options += "Integer max_iter    100\n";
+			options += "Integer max_iter    50\n";
 			// approximate accuracy in first order necessary conditions;
 			// see Mathematical Programming, Volume 106, Number 1,
 			// Pages 25-57, Equation (6)
-			options += "Numeric tol         1e-2\n";
+			options += "Numeric tol         1e-4\n";
 			//1e-6
-			FG_eval fg_eval(_N, _ts, _lr, _state_init, _path, _obstacles, __kf);
+			FG_eval fg_eval(_N, _ts, _lr, _state_init, _path, _obstacles);
 			CppAD::ipopt::solve_result<Dvector> solution;
 			CppAD::ipopt::solve<Dvector, FG_eval>(options, xi, xl, xu, gl, gu, fg_eval, solution);
 			ok &= solution.status == CppAD::ipopt::solve_result<Dvector>::success;
