@@ -1,20 +1,6 @@
-Copyright [2022] [Gunn Lee]
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-    http://www.apache.org/licenses/LICENSE-2.0
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-
 # dynamic_obstacles_path_finding_and_obstacles_avoidance_optimal_vehicle_controls
 Optimal control of 4 wheeled vehicle model from initial source to destination while path planning and avoiding dynamic obstacles.
 Main libraries used : Eigen 3.3, CppAD, IPOPT, Pangolin, OpenGL 3.3
-
-## My profile
-https://www.linkedin.com/in/gunn-lee/
 
 # Overview:
 1. Demonstration video with key functionalities 
@@ -40,3 +26,17 @@ FlowChart of the application
 
 
 
+## My profile
+https://www.linkedin.com/in/gunn-lee/
+
+## License
+Copyright [2022] [Gunn Lee]
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+    http://www.apache.org/licenses/LICENSE-2.0
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
