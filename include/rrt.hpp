@@ -15,7 +15,6 @@ class RRT : public kdTree, public Graph {
 		const float PI = 3.145927;
 		const float DEST_THRESH = 0.5f;
 		const float COL_THRESH = 0.1f;
-		const float INIT_OFFSET = 0.f;
 		const float DEST_OFFSET = 0.f;
 		float SPEED_LIMIT = 1.0f;
 		float STEER_LIMIT = 35.f;//40.f
@@ -23,6 +22,7 @@ class RRT : public kdTree, public Graph {
 		std::random_device _rd;
 		std::mt19937 _gen;
 		std::uniform_real_distribution<float> _uni_dis, _uni_dis_x, _uni_dis_y;
+		std::normal_distribution<float> _norm_dis;
 		std::vector<ObsPtr> *_obstacles;
 		RowVec2f _v_init, _v_dest, _v_diff, _v_mid;
 		Status _build_status=Status::NONE;
@@ -34,8 +34,10 @@ class RRT : public kdTree, public Graph {
 			_v_mid = (_v_dest + _v_init) / 2.f;
 			_gen = std::mt19937(_rd());
 			_uni_dis = std::uniform_real_distribution<float>(-1.0,1.0);
-			_uni_dis_x = std::uniform_real_distribution<float>(std::min(_v_init(0),_v_dest(0))-INIT_OFFSET, std::max(_v_init(0),_v_dest(0))+DEST_OFFSET);
-			_uni_dis_y = std::uniform_real_distribution<float>(std::min(_v_init(1),_v_dest(1))-INIT_OFFSET, std::max(_v_init(1),_v_dest(1))+DEST_OFFSET);
+			_uni_dis_x = std::uniform_real_distribution<float>(std::min(_v_init(0),_v_dest(0)), std::max(_v_init(0),_v_dest(0))+DEST_OFFSET);
+			_uni_dis_y = std::uniform_real_distribution<float>(std::min(_v_init(1),_v_dest(1)), std::max(_v_init(1),_v_dest(1))+DEST_OFFSET);
+
+			_norm_dis = std::normal_distribution<float>(0.f, 0.25f);
 		};
 		
 		RRT(const RowVec2f &__v_init, const RowVec2f &__v_dest, std::vector<ObsPtr> *__obstacles, int __k) : _v_init(__v_init), _v_dest(__v_dest), kdTree(__v_init.cols()), _obstacles(__obstacles) {
@@ -44,8 +46,9 @@ class RRT : public kdTree, public Graph {
 			_v_mid = (_v_dest + _v_init) / 2.f;
 			_gen = std::mt19937(_rd());
 			_uni_dis = std::uniform_real_distribution<float>(-1.0,1.0);
-			_uni_dis_x = std::uniform_real_distribution<float>(std::min(_v_init(0),_v_dest(0))-INIT_OFFSET, std::max(_v_init(0),_v_dest(0))+DEST_OFFSET);
-			_uni_dis_y = std::uniform_real_distribution<float>(std::min(_v_init(1),_v_dest(1))-INIT_OFFSET, std::max(_v_init(1),_v_dest(1))+DEST_OFFSET);
+			_uni_dis_x = std::uniform_real_distribution<float>(std::min(_v_init(0),_v_dest(0)), std::max(_v_init(0),_v_dest(0))+DEST_OFFSET);
+			_uni_dis_y = std::uniform_real_distribution<float>(std::min(_v_init(1),_v_dest(1)), std::max(_v_init(1),_v_dest(1))+DEST_OFFSET);
+			_norm_dis = std::normal_distribution<float>(0.f, 0.25f);
 			_build_status = build(__k);
 		};
 		virtual Status build(int __k) {
@@ -90,11 +93,8 @@ class RRT : public kdTree, public Graph {
 		}
 		
 		bool collision_free(const NodePtr &__n) {
-			Vec2f __v = __n->val().transpose();
-			return collision_free(__v);
-		}
-		bool collision_free(const Vec2f &__v) {
 			bool res = true;
+			RowVec2f __v = __n->val();
 			for (int i=0; i<_obstacles->size(); i++) {
 				res &= _obstacles->at(i)->collision_free(__v, COL_THRESH);
 			}
@@ -124,7 +124,7 @@ class RRT : public kdTree, public Graph {
 		NodePtr new_biased_config(const RowVec2f &__v_near) {
 			RowVec2f diff_normal = _v_dest-__v_near;
 			diff_normal.normalize();
-			float theta = (1-_uni_dis(_gen)) * STEER_LIMIT*1.5;
+			float theta = (1-_norm_dis(_gen)) * STEER_LIMIT*1.5;
 			Vec2f rotated = rotate(deg_to_rad(theta))*diff_normal.transpose();
 			RowVec2f new_v = __v_near + SPEED_LIMIT*rotated.transpose();
 			return std::make_shared<Node>(new_v);

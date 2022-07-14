@@ -12,7 +12,7 @@
 #include <iostream>
 #include <iomanip>
 #include <cmath>
-#include "opengl_utility/Cubesphere.h"
+#include "Cubesphere.h"
 
 
 
