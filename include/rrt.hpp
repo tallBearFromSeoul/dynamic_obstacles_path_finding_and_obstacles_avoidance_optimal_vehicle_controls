@@ -2,9 +2,7 @@
 #include "graph.hpp"
 #include "kdtree.hpp"
 #include "vehicle.hpp"
-
 typedef Eigen::Matrix2f Mat2f;
-
 class RRT : public kdTree, public Graph {
 	public:
 		enum Status{
@@ -12,46 +10,43 @@ class RRT : public kdTree, public Graph {
 		};
 	private:
 	protected:
-		const float PI = 3.145927;
-		const float DEST_THRESH = 0.5f;
-		const float COL_THRESH = 0.1f;
-		const float DEST_OFFSET = 0.f;
-		float SPEED_LIMIT = 1.0f;
-		float STEER_LIMIT = 35.f;//40.f
+ 		const float PI = 3.145927;
+ 		const float DEST_THRESH = 0.5f;
+ 		const float COL_THRESH = 0.1f;
+ 		const float INIT_OFFSET = 0.f;
+ 		const float DEST_OFFSET = 0.f;
+ 		float SPEED_LIMIT = 1.0f;
+ 		float STEER_LIMIT = 35.f;//40.f
 
-		std::random_device _rd;
-		std::mt19937 _gen;
-		std::uniform_real_distribution<float> _uni_dis, _uni_dis_x, _uni_dis_y;
-		std::normal_distribution<float> _norm_dis;
-		std::vector<ObsPtr> *_obstacles;
-		RowVec2f _v_init, _v_dest, _v_diff, _v_mid;
-		Status _build_status=Status::NONE;
+ 		std::random_device _rd;
+ 		std::mt19937 _gen;
+ 		std::uniform_real_distribution<float> _uni_dis, _uni_dis_x, _uni_dis_y;
+ 		std::vector<ObsPtr> *_obstacles;
+ 		RowVec2f _v_init, _v_dest, _v_diff, _v_mid;
+ 		Status _build_status=Status::NONE;
 	public:
 		Status build_status() {return _build_status;};
 		RRT(const RowVec2f &__v_init, const RowVec2f &__v_dest, std::vector<ObsPtr> *__obstacles) : _v_init(__v_init), _v_dest(__v_dest), kdTree(__v_init.cols()), _obstacles(__obstacles), DEST_OFFSET(std::max(__v_dest(0),__v_dest(1))/3.f) {
 			_kd_root = std::make_shared<TreeNode>(__v_init, 0);
 			_v_diff = (_v_dest - _v_init) / 2.f;
-			_v_mid = (_v_dest + _v_init) / 2.f;
-			_gen = std::mt19937(_rd());
-			_uni_dis = std::uniform_real_distribution<float>(-1.0,1.0);
-			_uni_dis_x = std::uniform_real_distribution<float>(std::min(_v_init(0),_v_dest(0)), std::max(_v_init(0),_v_dest(0))+DEST_OFFSET);
-			_uni_dis_y = std::uniform_real_distribution<float>(std::min(_v_init(1),_v_dest(1)), std::max(_v_init(1),_v_dest(1))+DEST_OFFSET);
+ 			_v_mid = (_v_dest + _v_init) / 2.f;
+ 			_gen = std::mt19937(_rd());
+ 			_uni_dis = std::uniform_real_distribution<float>(-1.0,1.0);
+ 			_uni_dis_x = std::uniform_real_distribution<float>(std::min(_v_init(0),_v_dest(0))-INIT_OFFSET, std::max(_v_init(0),_v_dest(0))+DEST_OFFSET);
+ 			_uni_dis_y = std::uniform_real_distribution<float>(std::min(_v_init(1),_v_dest(1))-INIT_OFFSET, std::max(_v_init(1),_v_dest(1))+DEST_OFFSET);
+ 		};
 
-			_norm_dis = std::normal_distribution<float>(0.f, 0.25f);
-		};
-		
-		RRT(const RowVec2f &__v_init, const RowVec2f &__v_dest, std::vector<ObsPtr> *__obstacles, int __k) : _v_init(__v_init), _v_dest(__v_dest), kdTree(__v_init.cols()), _obstacles(__obstacles) {
+ 		RRT(const RowVec2f &__v_init, const RowVec2f &__v_dest, std::vector<ObsPtr> *__obstacles, int __k) : _v_init(__v_init), _v_dest(__v_dest), kdTree(__v_init.cols()), _obstacles(__obstacles) {
 			_kd_root = std::make_shared<TreeNode>(__v_init, 0);
 			_v_diff = (_v_dest - _v_init) / 2.f;
-			_v_mid = (_v_dest + _v_init) / 2.f;
-			_gen = std::mt19937(_rd());
-			_uni_dis = std::uniform_real_distribution<float>(-1.0,1.0);
-			_uni_dis_x = std::uniform_real_distribution<float>(std::min(_v_init(0),_v_dest(0)), std::max(_v_init(0),_v_dest(0))+DEST_OFFSET);
-			_uni_dis_y = std::uniform_real_distribution<float>(std::min(_v_init(1),_v_dest(1)), std::max(_v_init(1),_v_dest(1))+DEST_OFFSET);
-			_norm_dis = std::normal_distribution<float>(0.f, 0.25f);
-			_build_status = build(__k);
-		};
-		virtual Status build(int __k) {
+ 			_v_mid = (_v_dest + _v_init) / 2.f;
+ 			_gen = std::mt19937(_rd());
+ 			_uni_dis = std::uniform_real_distribution<float>(-1.0,1.0);
+ 			_uni_dis_x = std::uniform_real_distribution<float>(std::min(_v_init(0),_v_dest(0))-INIT_OFFSET, std::max(_v_init(0),_v_dest(0))+DEST_OFFSET);
+ 			_uni_dis_y = std::uniform_real_distribution<float>(std::min(_v_init(1),_v_dest(1))-INIT_OFFSET, std::max(_v_init(1),_v_dest(1))+DEST_OFFSET);
+ 			_build_status = build(__k);
+ 		};
+ 		virtual Status build(int __k) {
 			Status status, latest_status;
 			NodePtr last_node = nullptr;
 			for (int i=0; i<__k; i++) {
@@ -90,14 +85,17 @@ class RRT : public kdTree, public Graph {
 			} else {
 				return Status::ADVANCED;
 			}
-		}
-		
-		bool collision_free(const NodePtr &__n) {
-			bool res = true;
-			RowVec2f __v = __n->val();
-			for (int i=0; i<_obstacles->size(); i++) {
-				res &= _obstacles->at(i)->collision_free(__v, COL_THRESH);
-			}
+ 		}
+
+ 		bool collision_free(const NodePtr &__n) {
+ 			Vec2f __v = __n->val().transpose();
+ 			return collision_free(__v);
+ 		}
+ 		bool collision_free(const Vec2f &__v) {
+ 			bool res = true;
+ 			for (int i=0; i<_obstacles->size(); i++) {
+ 				res &= _obstacles->at(i)->collision_free(__v, COL_THRESH);
+ 			}
 			return res;
 		}
 		
@@ -113,23 +111,20 @@ class RRT : public kdTree, public Graph {
 			res(1) = std::uniform_real_distribution<float>{std::min(__cur_p(1),_v_dest(1))-1.f, std::max(__cur_p(1),_v_dest(1))+1.f}(_gen);
 			return res;
 		}
-
 		RowVec2f random_config(const NodePtr &__last_node) {
 			RowVec2f res = RowVec2f::NullaryExpr(1,2,[&](){return _uni_dis(_gen);});
 			//if (__last_node != nullptr)
 			//	res += __last_node->val();
 			return res;
 		}
-
-		NodePtr new_biased_config(const RowVec2f &__v_near) {
-			RowVec2f diff_normal = _v_dest-__v_near;
-			diff_normal.normalize();
-			float theta = (1-_norm_dis(_gen)) * STEER_LIMIT*1.5;
-			Vec2f rotated = rotate(deg_to_rad(theta))*diff_normal.transpose();
-			RowVec2f new_v = __v_near + SPEED_LIMIT*rotated.transpose();
-			return std::make_shared<Node>(new_v);
+ 		NodePtr new_biased_config(const RowVec2f &__v_near) {
+ 			RowVec2f diff_normal = _v_dest-__v_near;
+ 			diff_normal.normalize();
+ 			float theta = (1-_uni_dis(_gen)) * STEER_LIMIT*1.5;
+ 			Vec2f rotated = rotate(deg_to_rad(theta))*diff_normal.transpose();
+ 			RowVec2f new_v = __v_near + SPEED_LIMIT*rotated.transpose();
+ 			return std::make_shared<Node>(new_v);
 		}
-
 		NodePtr new_config(const RowVec2f &__v_near) {	
 			RowVec2f diff_normal = _v_dest-__v_near;
 			diff_normal.normalize();
@@ -138,7 +133,6 @@ class RRT : public kdTree, public Graph {
 			RowVec2f new_v = __v_near + SPEED_LIMIT*rotated.transpose();
 			return std::make_shared<Node>(new_v);
 		}
-
 		NodePtr new_config(const RowVec2f &__src, const RowVec2f &__dst) {
 			RowVec2f diff_normal = __dst-__src;
 			diff_normal.normalize();
@@ -146,19 +140,16 @@ class RRT : public kdTree, public Graph {
 			Vec2f rotated = rotate(deg_to_rad(theta))*diff_normal.transpose();
 			RowVec2f new_v = __src + SPEED_LIMIT*rotated.transpose();
 			return std::make_shared<Node>(new_v);
-
 		}
 		
 		Mat2f rotate(float __theta) {
 			Mat2f rot_mat {{cos(__theta), -sin(__theta)}, {sin(__theta), cos(__theta)}};
 			return rot_mat;
 		}
-
 		float deg_to_rad(float __deg) {
 			return PI*__deg/180.f;
 		}
 };
-
 class RRTStar : public RRT {
 	private:
 	protected:
@@ -171,7 +162,6 @@ class RRTStar : public RRT {
 		RRTStar(const RowVec2f &__v_init, const RowVec2f &__v_dest, std::vector<ObsPtr> *__obstacles, int __k) : RRT(__v_init, __v_dest, __obstacles) {
 			_build_status = build(__k);
 		}
-
 		virtual Status build(int __k) {
 			Status latest_status = Status::NONE;
 			NodePtr n_init = _kd_root;
@@ -190,7 +180,6 @@ class RRTStar : public RRT {
 				// temporary initial cost assignment to n_near
 				float cost = (n_new->val()-n_near->val()).norm();
 				_nid2cost_map.insert({n_new->id(), _nid2cost_map.at(n_near->id()) + cost});
-
 				// Collision check of the new node
 				// if the check fails then just skip the iteration;
 				if (!collision_free(n_new)) {
@@ -239,7 +228,6 @@ class RRTStar : public RRT {
 			}
 			return latest_status;
 		}
-
 		void rewire(const std::vector<NodePtr> &__nbs, const NodePtr &__n_min, const NodePtr &__n_new, Graph *graph, std::unordered_map<int, float> *__nid2cost_map) {
 			for (const NodePtr &__nb : __nbs) {
 				NodePtr n_p = RRT::new_config(__n_new->val());
@@ -254,7 +242,6 @@ class RRTStar : public RRT {
 			}
 			
 		}
-
 		NodePtr choose_parent(const std::vector<NodePtr> &__nbs, const NodePtr &__n_near, const NodePtr &__n_new, std::unordered_map<int, float> *__nid2cost_map) {
 			float c_min = (__n_new->val()-__n_near->val()).norm() + __nid2cost_map->at(__n_near->id());
 			NodePtr z_min = __n_near;
@@ -272,14 +259,12 @@ class RRTStar : public RRT {
 			__nid2cost_map->insert({z_min->id(), c_min});
 			return z_min;
 		}
-
 		Status update(const Vec2f &__cur_p) {
 			Status latest_status;
 			NodePtr n_cur, n_near;
 			n_cur = std::make_shared<Node>(__cur_p);
 			_nid2cost_map[n_cur->id()] = 0.f;
 			add_node(n_cur);
-
 			std::vector<NodePtr> nbs = neighbors(n_cur, NEIGH_THRESH*2.f);
 			if (nbs.size() == 0) {
 				n_near = nearest(__cur_p);
@@ -288,7 +273,6 @@ class RRTStar : public RRT {
 			dfs(n_cur, nbs, n_dest);
 			if (_path_found)
 				return Status::REACHED;
-
 			for (int i=0; i<REBUILD_ITER_MAX; i++) {
 					RowVec2f v_rand = random_config(__cur_p);
 					NodePtr n_near, n_new;
@@ -296,7 +280,6 @@ class RRTStar : public RRT {
 					n_new = new_config(n_near->val());
 					float cost = (n_new->val()-n_near->val()).norm();
 					_nid2cost_map.insert({n_new->id(), _nid2cost_map.at(n_near->id()) + cost});
-
 					if (!collision_free(n_new)) {
 						n_new.reset();
 						latest_status = Status::TRAPPED;
@@ -313,7 +296,6 @@ class RRTStar : public RRT {
 					add_edge(n_min, n_new);
 					_nid2cost_map[n_new->id()] = _nid2cost_map[n_min->id()] + (n_new->val()-n_min->val()).norm();
 					rewire(nbs, n_min, n_new, this, &_nid2cost_map);
-
 					//status = extend(v_rand, last_node, latest_status, n_cur, true);
 					if (latest_status == Status::REACHED) {
 						return latest_status;
@@ -327,15 +309,12 @@ class RRTStar : public RRT {
 				nbs = {n_near};
 			}
 			dfs(n_cur, nbs, n_dest);
-
 			insert(_kd_root, n_cur);
 			if (_path_found)
 				return Status::REACHED;
 			return latest_status;
 		}
-
 };
-
 class BRRTStar : public RRTStar {
 	private:
 	protected:
@@ -349,7 +328,6 @@ class BRRTStar : public RRTStar {
 		std::unordered_map<int, std::vector<int>> *graphB() {return _graph_B->graph();}
 		std::unordered_map<int, int> gid2nid_mapB() {return _graph_B->gid2nid_map();}
 		std::unordered_map<int, NodePtr> nid2n_mapB() {return _graph_B->nid2n_map();}
-
 		BRRTStar(const RowVec2f &__v_init, const RowVec2f &__v_dest, std::vector<ObsPtr> *__obstacles) : RRTStar(__v_init, __v_dest, __obstacles) {}
 		BRRTStar(const RowVec2f &__v_init, const RowVec2f &__v_dest, std::vector<ObsPtr> *__obstacles, int __k) : RRTStar(__v_init, __v_dest, __obstacles) {
 			_kd_root_B = std::make_shared<TreeNode>(__v_dest, 0);
@@ -361,13 +339,11 @@ class BRRTStar : public RRTStar {
 			_b_path = std::make_pair(temp, std::numeric_limits<float>::max()); 
 			_build_status = build(__k);
 		}
-
 		Status build(int __k) {
 			Status latest_status = Status::NONE;
 			NodePtr n_init = _kd_root;
 			_nid2cost_map[_kd_root->id()] = 0.f;
 			_nid2cost_map_B[_kd_root_B->id()] = 0.f;
-
 			Graph *graphA__ = this;
 			Graph *graphB__ = _graph_B;
 			kdTree *kdtreeA__ = this;
@@ -378,7 +354,6 @@ class BRRTStar : public RRTStar {
 			TreeNodePtr kdrootB__ = _kd_root_B;
 			std::unordered_map<int, float> *costmapA__ = &_nid2cost_map;
 			std::unordered_map<int, float> *costmapB__ = &_nid2cost_map_B;
-
 			for (int i=0; i<__k; i++) {
 				// Uniform Random Sampling of a vertex in the range of _v_init, and _v_dest.
 				RowVec2f v_rand = random_config();
@@ -393,7 +368,6 @@ class BRRTStar : public RRTStar {
 				// temporary initial cost assignment to n_near
 				float cost = (n_new->val()-n_near->val()).norm();
 				costmapA__->insert({n_new->id(), costmapA__->at(n_near->id()) + cost});
-
 				// Collision check of the new node
 				// if the check fails then just skip the iteration;
 				if (!collision_free(n_new)) {
@@ -470,14 +444,12 @@ class BRRTStar : public RRTStar {
 			rewire(nbs_B, n_min_B, n_new_B, __graphB, __nid2cost_mapB);
 			return dfs_connect(__n_new, n_new_B, __graphA, __graphB, __nid2cost_mapA, __nid2cost_mapB);
 		}
-
 		std::vector<NodePtr> update(const Vec2f &__cur_p) {
 			Status latest_status;
 			NodePtr n_cur, n_near;
 			n_cur = std::make_shared<Node>(__cur_p);
 			_nid2cost_map_B[n_cur->id()] = 0.f;
 			_graph_B->add_node(n_cur);
-
 			std::vector<NodePtr> nbs_B = _kd_tree_B->neighbors(n_cur, NEIGH_THRESH);
 			if (nbs_B.size() == 0) {
 				NodePtr n_near = _kd_tree_B->nearest(n_cur->val());
@@ -485,7 +457,6 @@ class BRRTStar : public RRTStar {
 			}
 			return dfs_connect(n_cur, nbs_B, this, _graph_B, _kd_tree_B, &_nid2cost_map, &_nid2cost_map_B);
 		}
-
 		std::pair<std::vector<NodePtr>, float> dfs_connect(const NodePtr &__n_new, const NodePtr &__n_new_B, Graph *__graphA, Graph *__graphB, std::unordered_map<int, float> *__nid2cost_mapA, std::unordered_map<int, float> *__nid2cost_mapB) {
 			std::vector<NodePtr> path_A = __graphA->dfs(_kd_root, __n_new);
 			std::vector<NodePtr> path_B = __graphB->dfs(n_dest, __n_new_B);
@@ -513,4 +484,3 @@ class BRRTStar : public RRTStar {
 			return path_B;
 		}
 };	
-

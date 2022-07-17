@@ -1,5 +1,6 @@
 #ifndef NODE_HPP
 #define NODE_HPP
+#include <memory>
 #include <iostream>
 #include <vector>
 #include <Eigen/Dense>
